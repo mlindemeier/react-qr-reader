@@ -30,14 +30,16 @@ module.exports = class Reader extends Component {
     showViewFinder: PropTypes.bool,
     style: PropTypes.any,
     className: PropTypes.string,
-    constraints: PropTypes.object
+    constraints: PropTypes.object,
+    aspectRatio: PropTypes.number,
   };
   static defaultProps = {
     delay: 500,
     resolution: 600,
     facingMode: 'environment',
     showViewFinder: true,
-    constraints: null
+    constraints: null,
+    aspectRatio: 1,
   };
 
   els = {};
@@ -213,7 +215,7 @@ module.exports = class Reader extends Component {
     preview.removeEventListener('loadstart', this.handleLoadStart)
   }
   check() {
-    const { legacyMode, resolution, delay } = this.props
+    const { legacyMode, resolution, delay, aspectRatio } = this.props
     const { preview, canvas, img } = this.els
 
     // Get image/video dimensions
@@ -235,21 +237,18 @@ module.exports = class Reader extends Component {
 
       canvas.width = width
       canvas.height = height
-    }else{
-      // Crop image to fit 1:1 aspect ratio
-      const smallestSize = width < height ? width : height
-      const ratio = resolution / smallestSize
+    } else {
+      const analyzableHeight = aspectRatio < 1 ? resolution : resolution / aspectRatio;
+      const analyzableWidth = aspectRatio > 1 ? resolution : resolution * aspectRatio;
 
-      height = ratio * height
-      width = ratio * width
+      const scale = Math.max(analyzableHeight / height, analyzableWidth / width);
 
-      vertOffset = (height - resolution) / 2 * -1
-      hozOffset = (width - resolution) / 2 * -1
+      vertOffset = (height * scale - analyzableHeight) / 2 * -1;
+      hozOffset = (width * scale - analyzableWidth) / 2 * -1;
 
-      canvas.width = resolution
-      canvas.height = resolution
+      canvas.width = analyzableWidth;
+      canvas.height = analyzableHeight;
     }
-
 
     const previewIsPlaying = preview &&
       preview.readyState === preview.HAVE_ENOUGH_DATA
@@ -257,7 +256,7 @@ module.exports = class Reader extends Component {
     if (legacyMode || previewIsPlaying) {
       const ctx = canvas.getContext('2d')
 
-      ctx.drawImage(legacyMode ? img : preview, hozOffset, vertOffset, width, height)
+      ctx.drawImage(legacyMode ? img : preview, hozOffset, vertOffset, width * scale, height * scale);
 
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
       // Send data to web-worker
